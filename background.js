@@ -28,38 +28,10 @@ var CLUTlog = function(str) {
 	}
 }
 
-
-
-function onInstall() {
-	CLUTlog("Extension Installed");
-	chrome.windows.create({url:"http://www.harshay-buradkar.com/clut_update6.html"});
-}
-
-function onUpdate() {
-	CLUTlog("Extension Updated");
-	chrome.windows.create({url:"http://www.harshay-buradkar.com/clut_update6.html"});
-}
-
 function getVersion() {
-	var details = chrome.app.getDetails();
-	return details.version;
+        var manifestData = chrome.runtime.getManifest();
+	return manifestData.version;
 }
-
-// Check if the version has changed.
-var currVersion = getVersion();
-var prevVersion = localStorage['version']
-CLUTlog("prev version: "+prevVersion);
-CLUTlog("curr version: "+currVersion);
-if (currVersion != prevVersion) {
-// Check if we just installed this extension.
-	if (typeof prevVersion == 'undefined') {
-        onInstall();
-    } else {
-		onUpdate();
-	}
-	localStorage['version'] = currVersion;
-}
-
 
 var processCommand = function(command) {
 	CLUTlog('Command recd:' + command);
@@ -123,7 +95,7 @@ var processCommand = function(command) {
 
 chrome.commands.onCommand.addListener(processCommand);
 
-chrome.browserAction.onClicked.addListener(function(tab) {
+chrome.action.onClicked.addListener(function(tab) {
 	CLUTlog('Click recd');
 	processCommand('alt_switch_fast');
 
@@ -175,7 +147,7 @@ var doIntSwitch = function() {
 			}
 		});	
 
-		
+
 	}
 }
 
@@ -323,7 +295,6 @@ var quickSwitchActiveUsage = function() {
 		} else if(quickActive < 5){
 			quickActive++;
 		} else if(quickActive >= 5) {
-			_gaq.push(['_trackEvent', 'activeUsage', 'quick']);
 			quickActive = -1;
 		}
 	}
@@ -337,28 +308,7 @@ var slowSwitchActiveUsage = function() {
 		} else if(slowActive < 5){
 			slowActive++;
 		} else if(slowActive >= 5) {
-			_gaq.push(['_trackEvent', 'activeUsage', 'slow']);
 			slowActive = -1;
 		}
 	}
 }
-
-//check for actual active users
-var _AnalyticsCode = 'UA-51920707-1';
-var _gaq = _gaq || [];
-_gaq.push(['_setAccount', _AnalyticsCode]);
-_gaq.push(['_trackPageview']);
-
-(function() {
-	var ga = document.createElement('script');
-	ga.type = 'text/javascript';
-	ga.async = true;
-	ga.src = 'https://ssl.google-analytics.com/ga.js';
-	//ga.src = 'https://ssl.google-analytics.com/u/ga_debug.js';
-	var s = document.getElementsByTagName('script')[0];
-	s.parentNode.insertBefore(ga, s);
-})();
-document.addEventListener('DOMContentLoaded', function () {
-	domLoaded = true;
-
-});
