@@ -5,6 +5,7 @@
   "version": "2.0",
   "short_name": "CLUT",
   "permissions": [
+    "tabs"
   ],
   "icons": {
     "16": "icon16.png",
