@@ -19,7 +19,15 @@ var slowswitchForward = false;
 
 var initialized = false;
 
-var loggingOn = false;
+var loggingOn = true;
+
+var logTabInfo = function() {
+  chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs){
+    var id = tabs[0].id;
+    var url = tabs[0].url;
+    CLUTlog(`Tab with ID: ${id} has url: ${url}`);
+  });
+}
 
 var CLUTlog = function(str) {
   if (loggingOn) {
@@ -183,6 +191,7 @@ chrome.tabs.onActivated.addListener(function(activeInfo) {
 chrome.tabs.onCreated.addListener(function(tab) {
   CLUTlog("Tab create event fired with tab(" + tab.id + ")");
   addTabToMRUAtBack(tab.id);
+  logTabInfo();
 });
 
 chrome.tabs.onRemoved.addListener(function(tabId, removedInfo) {
@@ -196,6 +205,7 @@ var addTabToMRUAtBack = function(tabId) {
   if (index == -1) {
     //add to the end of mru
     mru.splice(-1, 0, tabId);
+    CLUTlog("Tab added to MRU at back: " + tabId);
   }
 
 }
@@ -205,14 +215,17 @@ var addTabToMRUAtFront = function(tabId) {
   if (index == -1) {
     //add to the front of mru
     mru.splice(0, 0, tabId);
+    CLUTlog("Tab added to MRU at front: " + tabId);
   }
-
 }
+
 var putExistingTabToTop = function(tabId) {
   var index = mru.indexOf(tabId);
   if (index != -1) {
     mru.splice(index, 1);
     mru.unshift(tabId);
+    CLUTlog("Tab moved to top of MRU: " + tabId);
+    logTabInfo();
   }
 }
 
@@ -220,12 +233,14 @@ var removeTabFromMRU = function(tabId) {
   var index = mru.indexOf(tabId);
   if (index != -1) {
     mru.splice(index, 1);
+    CLUTlog("Tab removed from MRU: " + tabId);
   }
 }
 
 var removeItemAtIndexFromMRU = function(index) {
   if (index < mru.length) {
     mru.splice(index, 1);
+    CLUTlog("Tab removed from MRU at index: " + index);
   }
 }
 
@@ -250,6 +265,7 @@ var initialize = function() {
       windows.forEach(function(window) {
         window.tabs.forEach(function(tab) {
           mru.unshift(tab.id);
+          CLUTlog("Tab added to MRU during init: " + tab.id);
         });
       });
       CLUTlog("MRU after init: " + mru);
