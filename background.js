@@ -2,15 +2,9 @@ var mru = [];
 var slowSwitchOngoing = false;
 var fastSwitchOngoing = false;
 var intSwitchCount = 0;
-var lastIntSwitchIndex = 0;
-var altPressed = false;
-var wPressed = false;
+var lastIntSwitchTabId = null;
+var switchGeneration = 0;
 
-var domLoaded = false
-var quickActive = 0;
-var slowActive = 0;
-
-var prevTimestamp = 0;
 var slowtimerValue = 1500;
 var fasttimerValue = 200;
 var timer;
@@ -23,6 +17,9 @@ var loggingOn = true;
 
 var logTabInfo = function() {
   chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs){
+    if (!tabs.length) {
+      return;
+    }
     var id = tabs[0].id;
     var url = tabs[0].url;
     CLUTlog(`Tab with ID: ${id} has url: ${url}`);
@@ -65,6 +62,7 @@ var processCommand = function(command) {
     }
     CLUTlog("CLUT::START_SWITCH");
     intSwitchCount = 0;
+    lastIntSwitchTabId = null;
     doIntSwitch();
 
   } else if ((slowSwitchOngoing && !fastswitch) || (fastSwitchOngoing && fastswitch)) {
@@ -76,6 +74,7 @@ var processCommand = function(command) {
     fastSwitchOngoing = true;
     CLUTlog("CLUT::START_SWITCH");
     intSwitchCount = 0;
+    lastIntSwitchTabId = null;
     doIntSwitch();
 
   } else if (fastSwitchOngoing && !fastswitch) {
@@ -83,6 +82,7 @@ var processCommand = function(command) {
     slowSwitchOngoing = true;
     CLUTlog("CLUT::START_SWITCH");
     intSwitchCount = 0;
+    lastIntSwitchTabId = null;
     doIntSwitch();
   }
 
@@ -130,18 +130,29 @@ var doIntSwitch = function() {
     var tabIdToMakeActive;
     //check if tab is still present
     //sometimes tabs have gone missing
-    var invalidTab = true;
     var thisWindowId;
+    var nextSwitchCount;
     if (slowswitchForward) {
       decrementSwitchCounter();
+      nextSwitchCount = intSwitchCount;
     } else {
       incrementSwitchCounter();
+      nextSwitchCount = intSwitchCount;
     }
-    tabIdToMakeActive = mru[intSwitchCount];
+    tabIdToMakeActive = mru[nextSwitchCount];
+    var currentSwitchGeneration = ++switchGeneration;
     chrome.tabs.get(tabIdToMakeActive, function(tab) {
+      if (chrome.runtime.lastError) {
+        removeMissingTabAtSwitchIndex(nextSwitchCount);
+        return;
+      }
+      if (currentSwitchGeneration != switchGeneration) {
+        return;
+      }
+
       if (tab) {
         thisWindowId = tab.windowId;
-        invalidTab = false;
+        lastIntSwitchTabId = tabIdToMakeActive;
 
         chrome.windows.update(thisWindowId, {
           "focused": true
@@ -150,15 +161,10 @@ var doIntSwitch = function() {
           active: true,
           highlighted: true
         });
-        lastIntSwitchIndex = intSwitchCount;
         //break;
       } else {
         CLUTlog("CLUT:: in int switch, >>invalid tab found.intSwitchCount: " + intSwitchCount + ", mru.length: " + mru.length);
-        removeItemAtIndexFromMRU(intSwitchCount);
-        if (intSwitchCount >= mru.length) {
-          intSwitchCount = 0;
-        }
-        doIntSwitch();
+        removeMissingTabAtSwitchIndex(nextSwitchCount);
       }
     });
   }
@@ -168,8 +174,10 @@ var endSwitch = function() {
   CLUTlog("CLUT::END_SWITCH");
   slowSwitchOngoing = false;
   fastSwitchOngoing = false;
-  var tabId = mru[lastIntSwitchIndex];
-  putExistingTabToTop(tabId);
+  ++switchGeneration;
+  if (lastIntSwitchTabId) {
+    putExistingTabToTop(lastIntSwitchTabId);
+  }
   printMRUSimple();
 }
 
@@ -204,7 +212,7 @@ var addTabToMRUAtBack = function(tabId) {
   var index = mru.indexOf(tabId);
   if (index == -1) {
     //add to the end of mru
-    mru.splice(-1, 0, tabId);
+    mru.push(tabId);
     CLUTlog("Tab added to MRU at back: " + tabId);
   }
 
@@ -220,6 +228,9 @@ var addTabToMRUAtFront = function(tabId) {
 }
 
 var putExistingTabToTop = function(tabId) {
+  if (!tabId) {
+    return;
+  }
   var index = mru.indexOf(tabId);
   if (index != -1) {
     mru.splice(index, 1);
@@ -242,6 +253,17 @@ var removeItemAtIndexFromMRU = function(index) {
     mru.splice(index, 1);
     CLUTlog("Tab removed from MRU at index: " + index);
   }
+}
+
+var removeMissingTabAtSwitchIndex = function(index) {
+  removeItemAtIndexFromMRU(index);
+  // Keep the counter before the removed slot because doIntSwitch advances first.
+  if (index >= mru.length) {
+    intSwitchCount = mru.length > 0 ? mru.length - 1 : 0;
+  } else {
+    intSwitchCount = index > 0 ? index - 1 : mru.length - 1;
+  }
+  doIntSwitch();
 }
 
 var incrementSwitchCounter = function() {
@@ -294,36 +316,8 @@ var printMRUSimple = function() {
   CLUTlog("mru: " + mru);
 }
 
-var generatePrintMRUString = function() {
-  chrome.tabs.query(function() {
-
-  });
-  str += (i + " :(" + tab.id + ")" + tab.title);
-  str += "\n";
-}
-
 initialize();
 
-var quickSwitchActiveUsage = function() {
-  if (domLoaded) {
-    if (quickActive == -1) {
-      return;
-    } else if (quickActive < 5) {
-      quickActive++;
-    } else if (quickActive >= 5) {
-      quickActive = -1;
-    }
-  }
-}
+var quickSwitchActiveUsage = function() {}
 
-var slowSwitchActiveUsage = function() {
-  if (domLoaded) {
-    if (slowActive == -1) {
-      return;
-    } else if (slowActive < 5) {
-      slowActive++;
-    } else if (slowActive >= 5) {
-      slowActive = -1;
-    }
-  }
-}
+var slowSwitchActiveUsage = function() {}
